@@ -128,9 +128,11 @@ class Vocard(commands.Bot):
             except Exception as e:
                 func.logger.error(f"Cannot connected to dashboard! - Reason: {e}")
 
-        # Update version tracking
-        if not bot_config.version or bot_config.version != update.__version__:
+        # Update version tracking and sync application commands
+        if not bot_config.version or bot_config.version != update.__version__ or os.getenv("SYNC_COMMANDS", "").lower() in ("true", "1"):
+            func.logger.info("Synchronizing application commands with Discord...")
             await self.tree.sync()
+            func.logger.info("Application commands synchronized successfully!")
             func.update_json("settings.json", new_data={"version": update.__version__})
             
             for locale_key, values in self.tree.translator.MISSING_TRANSLATOR.items():

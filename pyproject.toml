@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vocard"
-version = "2.7.3"
+version = "2.7.4"
 description = "A customizable Discord music bot with Lavalink v4 and rich interactive UI"
 readme = "README.md"
 requires-python = ">=3.11"

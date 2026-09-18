@@ -34,7 +34,7 @@ from function import (
 )
 
 from voicelink import MongoDBHandler, LangHandler
-from voicelink.views import DebugView, HelpView, EmbedBuilderView
+from voicelink.views import DebugView, HelpView, EmbedBuilderView, ServersView
 from voicelink.placeholders import PlayerPlaceholder
 from voicelink.utils import format_ms, format_bytes, dispatch_message, send_localized_message
 
@@ -336,7 +336,7 @@ class Settings(commands.Cog, name="settings"):
         
     @app_commands.command(name="debug")
     async def debug(self, interaction: discord.Interaction):
-        if interaction.user.id not in voicelink.Config().bot_access_user:
+        if interaction.user.id not in voicelink.Config().bot_access_user and not await self.bot.is_owner(interaction.user):
             return await interaction.response.send_message("You are not able to use this command!", ephemeral=True)
 
         memory = psutil.virtual_memory()
@@ -369,7 +369,7 @@ class Settings(commands.Cog, name="settings"):
                     value=f"```• ADDRESS: {node._host}:{node._port}\n" \
                         f"• PLAYERS: {len(node._players)}\n" \
                         f"• CPU:     {node.stats.cpu_process_load:.1f}%\n" \
-                        f"• RAM:     {format_bytes(node.stats.free)}/{format_bytes(total_memory, True)} ({(node.stats.free/total_memory) * 100:.1f}%)\n"
+                        f"• RAM:     {format_bytes(node.stats.free)}/{format_bytes(total_memory, True)} ({(node.stats.free/total_memory) * 100:.1f}%)\n" \
                         f"• LATENCY: {node.latency:.2f}ms\n" \
                         f"• UPTIME:  {format_ms(node.stats.uptime)}```"
                 )
@@ -381,6 +381,24 @@ class Settings(commands.Cog, name="settings"):
                 )
 
         await interaction.response.send_message(embed=embed, view=DebugView(self.bot), ephemeral=True)
+
+    @app_commands.command(name="servers", description="View and manage all servers the bot is currently in (Bot Owner only).")
+    async def servers_slash(self, interaction: discord.Interaction):
+        if interaction.user.id not in voicelink.Config().bot_access_user and not await self.bot.is_owner(interaction.user):
+            return await interaction.response.send_message("You are not authorized to use this command!", ephemeral=True)
+
+        view = ServersView(self.bot, interaction.user)
+        await interaction.response.send_message(embed=view.build_overview_embed(), view=view, ephemeral=True)
+        view.message = await interaction.original_response()
+
+    @commands.command(name="servers", hidden=True)
+    async def servers_prefix(self, ctx: commands.Context):
+        if ctx.author.id not in voicelink.Config().bot_access_user and not await self.bot.is_owner(ctx.author):
+            return
+
+        view = ServersView(self.bot, ctx.author)
+        msg = await ctx.send(embed=view.build_overview_embed(), view=view)
+        view.message = msg
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Settings(bot))

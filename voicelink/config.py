@@ -24,32 +24,24 @@ SOFTWARE.
 import os
 
 from pathlib import Path
-from dotenv import load_dotenv
-from typing import (
-    Dict,
-    List,
-    Any,
-    Union,
-    Optional
-)
-
+from typing import Any
 from .enums import SearchType
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 class Config:
-    _instance: Optional['Config'] = None
+    _instance: 'Config | None' = None
     WORKING_DIR: Path = Path(__file__).resolve().parent.parent
-    LAST_SESSION_FILE_DIR: str = WORKING_DIR / "last-session.json"
+    LAST_SESSION_FILE_DIR: Path = WORKING_DIR / "last-session.json"
 
-    def __new__(cls, settings: Dict[str, Any] = None) -> 'Config':
+    def __new__(cls, settings: dict[str, Any] | None = None) -> 'Config':
         """
         Singleton pattern to ensure only one instance of Config exists.
         If settings are provided, creates a new instance that replaces the old one.
-        
-        Args:
-            settings (Dict[str, Any], optional): A dictionary containing configuration settings. Defaults to None.
-                                               If provided, creates a new instance that replaces the old one.
         """
         if settings is not None:
             instance = super(Config, cls).__new__(cls)
@@ -62,49 +54,68 @@ class Config:
             
         return cls._instance
 
-    def __init__(self, settings: Dict[str, Any] = None) -> None:
+    def __init__(self, settings: dict[str, Any] | None = None) -> None:
         """
         Initialize configuration settings. 
-        
-        Args:
-            settings (Dict[str, Any], optional): A dictionary containing configuration settings.
-                                               If None, uses empty dict with default values.
         """
         if hasattr(self, 'initialized'):
             return
             
         settings = settings or {}
         
-        self.token: str = settings.get("token") or os.getenv("TOKEN")
-        self.client_id: int = int(settings.get("client_id", 0)) or int(os.getenv("CLIENT_ID"))
-        self.genius_token: str = settings.get("genius_token") or os.getenv("GENIUS_TOKEN")
-        self.mongodb_url: str = settings.get("mongodb_url") or os.getenv("MONGODB_URL")
-        self.mongodb_name: str = settings.get("mongodb_name") or os.getenv("MONGODB_NAME")
+        self.token: str | None = settings.get("token") or os.getenv("TOKEN")
+        client_id_val = settings.get("client_id") or os.getenv("CLIENT_ID")
+        self.client_id: int = int(client_id_val) if client_id_val else 0
+        self.genius_token: str | None = settings.get("genius_token") or os.getenv("GENIUS_TOKEN")
+        self.mongodb_url: str | None = settings.get("mongodb_url") or os.getenv("MONGODB_URL")
+        self.mongodb_name: str | None = settings.get("mongodb_name") or os.getenv("MONGODB_NAME")
         
         self.invite_link: str = "https://discord.gg/wRCgB7vBQv"
-        self.nodes: Dict[str, Dict[str, Union[str, int, bool]]] = settings.get("nodes", {})
+        
+        nodes = settings.get("nodes")
+        if not nodes and os.getenv("LAVALINK_HOST"):
+            nodes = {
+                os.getenv("LAVALINK_IDENTIFIER", "DEFAULT"): {
+                    "host": os.getenv("LAVALINK_HOST", "127.0.0.1"),
+                    "port": int(os.getenv("LAVALINK_PORT", 2333)),
+                    "password": os.getenv("LAVALINK_PASSWORD", "youshallnotpass"),
+                    "secure": os.getenv("LAVALINK_SECURE", "false").lower() == "true",
+                    "identifier": os.getenv("LAVALINK_IDENTIFIER", "DEFAULT")
+                }
+            }
+        self.nodes: dict[str, dict[str, str | int | bool]] = nodes or {}
         self.max_queue: int = settings.get("default_max_queue", 1000)
         self.search_platform: SearchType = SearchType.from_platform(settings.get("default_search_platform", "youtube")) or SearchType.YOUTUBE
         self.bot_prefix: str = settings.get("prefix", "")
-        self.activity: List[Dict[str, str]] = settings.get("activity", [{"listen": "/help"}])
-        self.logging: Dict[Union[str, Dict[str, Union[str, bool]]]] = settings.get("logging", {})
-        self.embed_color: str = int(settings.get("embed_color", "0xb3b3b3"), 16)
-        self.bot_access_user: List[int] = settings.get("bot_access_user", [])
-        self.sources_settings: Dict[Dict[str, str]] = settings.get("sources_settings", {})
-        self.cooldowns_settings: Dict[str, List[int]] = settings.get("cooldowns", {})
-        self.aliases_settings: Dict[str, List[str]] = settings.get("aliases", {})
-        self.controller: Dict[str, Dict[str, Any]] = settings.get("default_controller", {})
+        self.activity: list[dict[str, str]] = settings.get("activity", [{"listen": "/help"}])
+        self.logging: dict[str, Any] = settings.get("logging", {})
+        
+        color_val = settings.get("embed_color", "0xb3b3b3")
+        if isinstance(color_val, str):
+            self.embed_color: int = int(color_val, 16) if color_val.startswith("0x") else int(color_val)
+        else:
+            self.embed_color: int = int(color_val)
+
+        access_users = settings.get("bot_access_user")
+        if access_users is None and (env_access := os.getenv("BOT_ACCESS_USER")):
+            access_users = [int(uid.strip()) for uid in env_access.split(",") if uid.strip().isdigit()]
+        self.bot_access_user: list[int] = access_users or []
+
+        self.sources_settings: dict[str, dict[str, str]] = settings.get("sources_settings", {})
+        self.cooldowns_settings: dict[str, list[int]] = settings.get("cooldowns", {})
+        self.aliases_settings: dict[str, list[str]] = settings.get("aliases", {})
+        self.controller: dict[str, dict[str, Any]] = settings.get("default_controller", {})
         self.voice_status_template: str = settings.get("default_voice_status_template", "")
         self.lyrics_platform: str = settings.get("lyrics_platform", "A_ZLyrics").lower()
-        self.ipc_client: Dict[str, Union[str, bool, int]] = settings.get("ipc_client", {})
-        self.playlist_settings: Dict[str, Union[str, int]] = settings.get("playlist_settings", {})
-        self.timer_settings: Dict[str, int] = settings.get("timer_settings", {})
+        self.ipc_client: dict[str, Any] = settings.get("ipc_client", {})
+        self.playlist_settings: dict[str, Any] = settings.get("playlist_settings", {})
+        self.timer_settings: dict[str, int] = settings.get("timer_settings", {})
         self.version: str = settings.get("version", "")
         
         self.initialized = True
     
     @classmethod
-    def get_source_config(cls, source: str, type: str) -> Union[str, None]:
+    def get_source_config(cls, source: str, type: str) -> str | None:
         """
         Get source configuration for a specific source and type.
         

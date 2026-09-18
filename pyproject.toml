@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vocard"
+version = "2.7.3"
+description = "A customizable Discord music bot with Lavalink v4 and rich interactive UI"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Vocard Development" },
+    { name = "ChocoMeow" }
+]
+dependencies = [
+    "discord.py>=2.7.1",
+    "motor>=3.6.0",
+    "dnspython>=2.2.1",
+    "tldextract>=3.2.1",
+    "validators>=0.18.2",
+    "humanize>=4.0.0",
+    "beautifulsoup4>=4.11.1",
+    "psutil>=5.9.8",
+    "aiohttp>=3.11.12",
+    "python-dotenv>=1.1.1",
+    "requests>=2.31.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/LunarstarFurry/Vocard"
+Documentation = "https://docs.vocard.xyz"
+Support = "https://discord.gg/wRCgB7vBQv"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "UP"]
+ignore = ["E501"]

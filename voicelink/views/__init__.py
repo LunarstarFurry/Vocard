@@ -31,5 +31,6 @@ from .lyrics import LyricsView
 from .queue import QueueView
 from .help import HelpView
 from .search import SearchView
+from .servers import ServersView
 from discord.ext import commands
 

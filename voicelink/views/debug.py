@@ -34,6 +34,7 @@ from typing import Optional
 from discord.ext import commands
 
 from .utils import BaseModal
+from .servers import ServersView
 from ..config import Config
 from ..utils import format_ms, format_bytes
 
@@ -370,13 +371,19 @@ class DebugView(discord.ui.View):
         view = NodesPanel(self.bot)
         await interaction.response.send_message(embed=view.build_embed(), view=view, ephemeral=True)
         view.message = await interaction.original_response()
+
+    @discord.ui.button(label="Servers", emoji="🌐")
+    async def servers(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = ServersView(self.bot, interaction.user)
+        await interaction.response.send_message(embed=view.build_overview_embed(), view=view, ephemeral=True)
+        view.message = await interaction.original_response()
     
     @discord.ui.button(label="Stop-Bot", emoji="🔴")
     async def stop(self, interaction: discord.Interaction, button: discord.ui.Button):
         for name in self.bot.cogs.copy().keys():
             try:
                 await self.bot.unload_extension(name)
-            except:
+            except Exception:
                 pass
 
         player_data = []
@@ -388,7 +395,7 @@ class DebugView(discord.ui.View):
                 player_data.append(player.data)
                 try:
                     await player.teardown()
-                except:
+                except Exception:
                     pass
 
         if os.path.exists(Config.LAST_SESSION_FILE_DIR):

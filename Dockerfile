@@ -23,8 +23,9 @@ FROM python:3.12-slim-bookworm
 # Set the working directory
 WORKDIR /app
 
-# Copy installed Python packages from the builder stage
+# Copy installed Python packages and binaries from the builder stage
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy the application code
 COPY . .

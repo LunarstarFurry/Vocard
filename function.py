@@ -33,14 +33,15 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 logger: logging.Logger = logging.getLogger("vocard")
 
-if not os.path.exists(os.path.join(ROOT_DIR, "settings.json")):
-    raise Exception("Settings file not set!")
+SETTINGS_PATH = os.path.join(ROOT_DIR, "settings.json")
+if not os.path.exists(SETTINGS_PATH) and not os.getenv("TOKEN"):
+    logger.warning("settings.json not found and TOKEN environment variable is not set.")
 
 def open_json(path: str) -> dict:
     try:
         with open(os.path.join(ROOT_DIR, path), encoding="utf8") as json_file:
             return json.load(json_file)
-    except:
+    except Exception:
         return {}
 
 def update_json(path: str, new_data: dict) -> None:

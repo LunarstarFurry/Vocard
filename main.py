@@ -129,7 +129,20 @@ class Vocard(commands.Bot):
                 func.logger.error(f"Cannot connected to dashboard! - Reason: {e}")
 
         # Update version tracking and sync application commands
+        need_sync = False
         if not bot_config.version or bot_config.version != update.__version__ or os.getenv("SYNC_COMMANDS", "").lower() in ("true", "1"):
+            need_sync = True
+        else:
+            try:
+                remote_commands = {cmd.name for cmd in await self.tree.fetch_commands()}
+                local_commands = {cmd.name for cmd in self.tree.get_commands()}
+                if remote_commands != local_commands:
+                    func.logger.info(f"Command difference detected (Discord: {len(remote_commands)}, Local: {len(local_commands)}). Syncing...")
+                    need_sync = True
+            except Exception as e:
+                func.logger.debug(f"Could not compare remote commands: {e}")
+
+        if need_sync:
             func.logger.info("Synchronizing application commands with Discord...")
             await self.tree.sync()
             func.logger.info("Application commands synchronized successfully!")

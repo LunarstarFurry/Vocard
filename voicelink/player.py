@@ -909,6 +909,10 @@ class Player(VoiceProtocol):
             if self.channel.type == ChannelType.voice:
                 await self.channel.edit(status=status)
 
+        except discord.Forbidden:
+            self._logger.debug(
+                f"Missing permissions to update voice status in channel '{self.channel.name}' ({self.channel.id})"
+            )
         except Exception as e:
             self._logger.error(
                 f"Failed to update voice status in channel '{self.channel.name}' "

@@ -400,5 +400,17 @@ class Settings(commands.Cog, name="settings"):
         msg = await ctx.send(embed=view.build_overview_embed(), view=view)
         view.message = msg
 
+    @commands.command(name="sync", hidden=True)
+    async def sync_prefix(self, ctx: commands.Context):
+        if ctx.author.id not in voicelink.Config().bot_access_user and not await self.bot.is_owner(ctx.author):
+            return
+
+        msg = await ctx.send("🔄 Synchronizing application commands with Discord...")
+        try:
+            synced = await self.bot.tree.sync()
+            await msg.edit(content=f"✅ Successfully synchronized {len(synced)} commands with Discord!")
+        except Exception as e:
+            await msg.edit(content=f"❌ Failed to sync commands: {e}")
+
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Settings(bot))

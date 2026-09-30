@@ -35,8 +35,8 @@ __version__ = "v2.7.4"
 
 # URLs for update and migration
 PYTHON_CMD_NAME = os.path.basename(sys.executable)
-GITHUB_API_URL = "https://api.github.com/repos/ChocoMeow/Vocard/releases/latest"
-VOCARD_URL = "https://github.com/ChocoMeow/Vocard/archive/"
+GITHUB_API_URL = os.getenv("UPDATE_URL", "https://api.github.com/repos/LunarstarFurry/Vocard/releases/latest")
+VOCARD_URL = "https://github.com/LunarstarFurry/Vocard/archive/"
 MIGRATION_SCRIPT_URL = f"https://raw.githubusercontent.com/ChocoMeow/Vocard-Magration/main/{__version__}.py"
 IGNORE_FILES = ["settings.json", "logs", "last-session.json"]
 
@@ -55,12 +55,17 @@ def check_version(with_msg=False):
     Returns:
         str: the latest version.
     """
-    response = requests.get(GITHUB_API_URL)
-    latest_version = response.json().get("name", __version__)
+    try:
+        response = requests.get(GITHUB_API_URL, timeout=5)
+        latest_version = response.json().get("name", __version__)
+    except Exception:
+        latest_version = __version__
+
     if with_msg:
+        is_up_to_date = latest_version <= __version__
         msg = (
-            f"{bcolors.OKGREEN}Your bot is up-to-date! - {latest_version}{bcolors.ENDC}" 
-            if latest_version == __version__
+            f"{bcolors.OKGREEN}Your bot is up-to-date! - {__version__}{bcolors.ENDC}" 
+            if is_up_to_date
             else f"{bcolors.WARNING}Your bot is not up-to-date! The latest version is {latest_version} and you are currently running version {__version__}\nRun `{PYTHON_CMD_NAME} update.py -l` to update your bot!{bcolors.ENDC}"
         )
         print(msg)

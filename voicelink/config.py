@@ -85,7 +85,8 @@ class Config:
             }
         self.nodes: dict[str, dict[str, str | int | bool]] = nodes or {}
         self.max_queue: int = settings.get("default_max_queue", 1000)
-        self.search_platform: SearchType = SearchType.from_platform(settings.get("default_search_platform", "youtube")) or SearchType.YOUTUBE
+        search_platform_str = os.getenv("DEFAULT_SEARCH_PLATFORM") or settings.get("default_search_platform", "youtube")
+        self.search_platform: SearchType = SearchType.from_platform(search_platform_str) or SearchType.YOUTUBE
         self.bot_prefix: str = settings.get("prefix", "")
         self.activity: list[dict[str, str]] = settings.get("activity", [{"listen": "/help"}])
         self.logging: dict[str, Any] = settings.get("logging", {})

@@ -366,12 +366,37 @@ class Node:
         if not search_type:
             search_type = Config().search_platform
             
-        if not URL_REGEX.match(query) and ':' not in query:
+        raw_query = query
+        is_url = bool(URL_REGEX.match(query))
+        has_prefix = ':' in query
+
+        if not is_url and not has_prefix:
             query = f"{search_type}:{query}"
 
         response: dict[str, Any] = await self.send(RequestMethod.GET, f"loadtracks?identifier={quote(query)}")
         data = response.get("data")
         load_type = response.get("loadType")
+
+        # Automatic fallback: if YouTube search fails or is empty, try SoundCloud
+        if load_type in ("error", "empty") and not is_url and not has_prefix:
+            if search_type in (SearchType.YOUTUBE, SearchType.YOUTUBE_MUSIC):
+                fallback_type = SearchType.SOUNDCLOUD
+                fallback_query = f"{fallback_type}:{raw_query}"
+                if self._logger:
+                    self._logger.warning(
+                        f"Search failed on {search_type} ({data.get('message', 'empty') if isinstance(data, dict) else 'empty'}). "
+                        f"Falling back to {fallback_type} for query: {raw_query}"
+                    )
+                try:
+                    fallback_response = await self.send(RequestMethod.GET, f"loadtracks?identifier={quote(fallback_query)}")
+                    fallback_load_type = fallback_response.get("loadType")
+                    if fallback_load_type in ("search", "track") and fallback_response.get("data"):
+                        response = fallback_response
+                        data = response.get("data")
+                        load_type = fallback_load_type
+                except Exception as fb_err:
+                    if self._logger:
+                        self._logger.debug(f"Fallback search failed: {fb_err}")
 
         if not load_type:
             raise TrackLoadError("There was an error while trying to load this track.")
@@ -380,7 +405,13 @@ class Node:
             return None
 
         elif load_type == "error":
-            raise TrackLoadError(f"{data['message']} [{data['severity']}]")
+            msg = data.get('message', 'Unknown error') if isinstance(data, dict) else str(data)
+            severity = data.get('severity', 'fault') if isinstance(data, dict) else 'error'
+            raise TrackLoadError(
+                f"{msg} [{severity}]\n"
+                f"💡 *Hint: Your Lavalink node failed to query YouTube. "
+                f"Try playing via SoundCloud, Spotify, or update your Lavalink YouTube plugin.*"
+            )
 
         elif load_type in ("playlist", "recommendations"):
             return Playlist(playlist_info=data["info"], tracks=data["tracks"], requester=requester)

@@ -31,7 +31,7 @@ import function as func
 
 from discord.ext import commands
 from logging.handlers import TimedRotatingFileHandler
-from voicelink import Config, LangHandler, MongoDBHandler, IPCClient, VoicelinkException
+from voicelink import Config, LangHandler, MongoDBHandler, IPCClient, HealthServer, VoicelinkException
 from voicelink.utils import dispatch_message
 
 class Translator(discord.app_commands.Translator):
@@ -69,6 +69,7 @@ class Vocard(commands.Bot):
         super().__init__(*args, **kwargs)
 
         self.ipc_client: IPCClient
+        self.health_server: HealthServer | None = None
 
     async def on_message(self, message: discord.Message, /) -> None:
         # Ignore messages from bots or DMs
@@ -128,6 +129,19 @@ class Vocard(commands.Bot):
             except Exception as e:
                 func.logger.error(f"Cannot connected to dashboard! - Reason: {e}")
 
+        if bot_config.healthcheck.get("enable", True):
+            self.health_server = HealthServer(
+                self,
+                host=bot_config.healthcheck.get("host", "0.0.0.0"),
+                port=bot_config.healthcheck.get("port", 8080),
+                require_lavalink=bot_config.healthcheck.get("require_lavalink", False),
+                version=update.__version__,
+            )
+            try:
+                await self.health_server.start()
+            except Exception as e:
+                func.logger.error(f"Failed to start health check server! - Reason: {e}")
+
         # Update version tracking and sync application commands
         need_sync = False
         if not bot_config.version or bot_config.version != update.__version__ or os.getenv("SYNC_COMMANDS", "").lower() in ("true", "1"):
@@ -164,6 +178,14 @@ class Vocard(commands.Bot):
 
         bot_config.client_id = self.user.id
         LangHandler._local_langs.clear()
+
+    async def close(self) -> None:
+        if self.health_server:
+            try:
+                await self.health_server.stop()
+            except Exception as e:
+                func.logger.debug(f"Failed to stop health check server cleanly: {e}")
+        await super().close()
 
     async def on_command_error(self, ctx: commands.Context, exception, /) -> None:
         error = getattr(exception, 'original', exception)

@@ -30,5 +30,12 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy the application code
 COPY . .
 
+# Expose HTTP health check port
+EXPOSE 8080
+
+# Docker container health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import os, sys, urllib.request; sys.exit(0) if os.getenv('HEALTH_ENABLE', 'true').strip().lower() in ('false', '0', 'no') else urllib.request.urlopen('http://127.0.0.1:' + os.getenv('HEALTH_PORT', '8080') + '/health', timeout=4)" || exit 1
+
 # Run the application
 CMD ["python", "-u", "main.py"]

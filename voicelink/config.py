@@ -226,6 +226,39 @@ class Config:
         self.voice_status_template: str = settings.get("default_voice_status_template", "")
         self.lyrics_platform: str = (os.getenv("LYRICS_PLATFORM") or settings.get("lyrics_platform", "lrclib")).lower()
         self.ipc_client: dict[str, Any] = settings.get("ipc_client", {})
+
+        health_cfg = settings.get("healthcheck") or {}
+        env_health_enable = os.getenv("HEALTH_ENABLE")
+        health_enable = (
+            env_health_enable.strip().lower() in ("true", "1", "yes")
+            if env_health_enable is not None
+            else bool(health_cfg.get("enable", True))
+        )
+        health_host = os.getenv("HEALTH_HOST") or health_cfg.get("host", "0.0.0.0")
+        raw_health_port = os.getenv("HEALTH_PORT")
+        if raw_health_port is not None:
+            try:
+                health_port = int(raw_health_port)
+            except ValueError:
+                health_port = 8080
+        else:
+            try:
+                health_port = int(health_cfg.get("port", 8080))
+            except (TypeError, ValueError):
+                health_port = 8080
+        env_require_lavalink = os.getenv("HEALTH_REQUIRE_LAVALINK")
+        health_require_lavalink = (
+            env_require_lavalink.strip().lower() in ("true", "1", "yes")
+            if env_require_lavalink is not None
+            else bool(health_cfg.get("require_lavalink", False))
+        )
+        self.healthcheck: dict[str, Any] = {
+            "enable": health_enable,
+            "host": health_host,
+            "port": health_port,
+            "require_lavalink": health_require_lavalink,
+        }
+
         self.playlist_settings: dict[str, Any] = settings.get("playlist_settings", {})
         self.timer_settings: dict[str, int] = settings.get("timer_settings", {})
         self.version: str = settings.get("version", "")

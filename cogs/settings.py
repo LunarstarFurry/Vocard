@@ -165,8 +165,8 @@ class Settings(commands.Cog, name="settings"):
             settings.get('disabled_vote', False),
             settings.get('24/7', False),
             settings.get('volume', 100),
-            format_ms(settings.get('played_time', 0) * 60 * 1000),
-            inline=True)
+            format_ms(settings.get('played_time', 0) * 60 * 1000)),
+            inline=True
         )
         embed.add_field(name=texts[3], value=texts[4].format(
             settings.get("queue_type", "Queue"),
@@ -242,7 +242,7 @@ class Settings(commands.Cog, name="settings"):
         controller_settings = settings.get("default_controller", voicelink.Config().controller)
 
         placeholder = PlayerPlaceholder(ctx.bot)
-        view = EmbedBuilderView(ctx, placeholder, controller_settings.get("embeds").copy())
+        view = EmbedBuilderView(ctx, placeholder, (controller_settings.get("embeds") or {}).copy())
         view.response = await dispatch_message(ctx, view.build_embed(), view=view)
 
     @settings.command(name="controllermsg", aliases=get_aliases("controllermsg"))
@@ -344,9 +344,11 @@ class Settings(commands.Cog, name="settings"):
 
         available_memory, total_memory = memory.available, memory.total
         used_disk_space, total_disk_space = disk.used, disk.total
+        cpu_freq = psutil.cpu_freq()
+        cpu_freq_str = f"{cpu_freq.current:.0f}Mhz" if cpu_freq else "N/A"
         embed = discord.Embed(title="📄 Debug Panel", color=voicelink.Config().embed_color)
         embed.description = "```==    System Info    ==\n" \
-                            f"• CPU:     {psutil.cpu_freq().current}Mhz ({psutil.cpu_percent()}%)\n" \
+                            f"• CPU:     {cpu_freq_str} ({psutil.cpu_percent()}%)\n" \
                             f"• RAM:     {format_bytes(total_memory - available_memory)}/{format_bytes(total_memory, True)} ({memory.percent}%)\n" \
                             f"• DISK:    {format_bytes(total_disk_space - used_disk_space)}/{format_bytes(total_disk_space, True)} ({disk.percent}%)```"
 
@@ -362,14 +364,15 @@ class Settings(commands.Cog, name="settings"):
 
         node: voicelink.Node
         for name, node in voicelink.NodePool._nodes.items():
-            if node._available:
+            if node._available and node.stats:
                 total_memory = node.stats.used + node.stats.free
+                ram_pct = (node.stats.free / total_memory) * 100 if total_memory else 0.0
                 embed.add_field(
                     name=f"{name} Node - 🟢 Connected",
                     value=f"```• ADDRESS: {node._host}:{node._port}\n" \
                         f"• PLAYERS: {len(node._players)}\n" \
                         f"• CPU:     {node.stats.cpu_process_load:.1f}%\n" \
-                        f"• RAM:     {format_bytes(node.stats.free)}/{format_bytes(total_memory, True)} ({(node.stats.free/total_memory) * 100:.1f}%)\n" \
+                        f"• RAM:     {format_bytes(node.stats.free)}/{format_bytes(total_memory, True)} ({ram_pct:.1f}%)\n" \
                         f"• LATENCY: {node.latency:.2f}ms\n" \
                         f"• UPTIME:  {format_ms(node.stats.uptime)}```"
                 )

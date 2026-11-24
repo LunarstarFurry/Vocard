@@ -481,7 +481,7 @@ class InteractiveController(discord.ui.View):
         super().__init__(timeout=None)
 
         self.player: voicelink.Player = player
-        for row_num, btn_row in enumerate(Config().controller.get("buttons")):
+        for row_num, btn_row in enumerate(Config().controller.get("buttons") or []):
             for btn_name, btn_data in btn_row.items():
                 btn_class = BUTTON_TYPE.get(btn_name.lower())
                 if not btn_class:

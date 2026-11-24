@@ -51,7 +51,7 @@ def update_json(path: str, new_data: dict) -> None:
     else:
         data.update(new_data)
 
-    with open(os.path.join(ROOT_DIR, path), "w") as json_file:
+    with open(os.path.join(ROOT_DIR, path), "w", encoding="utf-8") as json_file:
         json.dump(data, json_file, indent=4)
 
 def cooldown_check(ctx: commands.Context) -> Optional[commands.Cooldown]:

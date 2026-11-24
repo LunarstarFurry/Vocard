@@ -36,9 +36,9 @@ class IPCClient:
         self._websocket: Optional[aiohttp.ClientWebSocketResponse] = None
         self._task: Optional[asyncio.Task] = None
 
-        self._heanders = {
+        self._headers = {
             "Authorization": self._password,
-            "User-Id": str(bot.user.id),
+            "User-Id": str(bot.user.id) if bot.user else "",
             "Client-Version": voicelink.Config().version
         }
 
@@ -62,17 +62,6 @@ class IPCClient:
                         self._logger.error("Reconnection failed.")
             else:
                 self._bot.loop.create_task(process_methods(self, self._bot, msg.json()))
-
-    async def send(self, data: dict):
-        if self.is_connected:
-            try:
-                await self._websocket.send_json(data)
-                self._logger.debug(f"Send Message: {data}")
-            except ConnectionResetError as _:
-                await self.disconnect()
-                await self.connect()
-                await self._websocket.send_json(data)
-                self._logger.debug(f"Send Message: {data}")
 
     async def send(self, data: dict):
         # Check if the websocket is still open
@@ -111,7 +100,7 @@ class IPCClient:
             
             self._is_connecting = True
             self._websocket = await self._session.ws_connect(
-                self._websocket_url, headers=self._heanders, heartbeat=self._heartbeat
+                self._websocket_url, headers=self._headers, heartbeat=self._heartbeat
             )
 
             self._task = self._bot.loop.create_task(self._listen())
@@ -135,7 +124,10 @@ class IPCClient:
 
     async def disconnect(self) -> None:
         self._is_connected = False
-        self._task.cancel()
+        if self._task:
+            self._task.cancel()
+        if self._websocket and not self._websocket.closed:
+            await self._websocket.close()
         self._logger.info("Disconnected to dashboard!")
     
     @property

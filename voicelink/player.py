@@ -909,7 +909,7 @@ class Player(VoiceProtocol):
             if self.channel.type == ChannelType.voice:
                 await self.channel.edit(status=status)
 
-        except discord.Forbidden:
+        except errors.Forbidden:
             self._logger.debug(
                 f"Missing permissions to update voice status in channel '{self.channel.name}' ({self.channel.id})"
             )
@@ -937,7 +937,7 @@ class Player(VoiceProtocol):
                 return
 
             members = self.channel.members if self.channel else []
-            has_non_bot = any(not m.bot or not m.voice.self_deaf for m in members)
+            has_non_bot = any(not m.bot and not (m.voice and m.voice.self_deaf) for m in members)
             # Empty channel: always pause/teardown. If people remain: only when idle (not playing + empty queue).
             if has_non_bot and (self.is_playing or not self.queue.is_empty):
                 return

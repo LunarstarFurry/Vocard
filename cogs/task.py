@@ -46,17 +46,21 @@ class Task(commands.Cog):
         await self.bot.wait_until_ready()
 
         try:
-            act_data = Config().activity[(self.current_act + 1) % len(Config().activity) - 1]
+            activities = Config().activity
+            if not activities:
+                return
+
+            act_data = activities[self.current_act % len(activities)]
             act_original = self.bot.activity
             act_type = getattr(discord.ActivityType, act_data.get("type", "").lower(), discord.ActivityType.playing)
             act_name = self.placeholder.replace(act_data.get("name", ""))
 
             status_type = getattr(discord.Status, act_data.get("status", "").lower(), None)
 
-            if act_original.type != act_type or act_original.name != act_name:
+            if not act_original or act_original.type != act_type or act_original.name != act_name:
                 self.bot.activity = discord.Activity(type=act_type, name=act_name)
                 await self.bot.change_presence(activity=self.bot.activity, status=status_type)
-                self.current_act = (self.current_act + 1) % len(Config().activity)
+                self.current_act = (self.current_act + 1) % len(activities)
 
                 func.logger.info(f"Changed the bot status to {act_name}")
 

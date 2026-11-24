@@ -23,6 +23,7 @@ SOFTWARE.
 
 import argparse
 import os
+import re
 import sys
 import requests
 import zipfile
@@ -46,6 +47,11 @@ class bcolors:
     OKGREEN = '\033[92m'
     ENDC = '\033[0m'
 
+def _parse_version(version: str) -> tuple[int, ...]:
+    """Parse a version string like 'v2.7.4' into a tuple of integers for comparison."""
+    parts = re.findall(r"\d+", version)
+    return tuple(int(part) for part in parts) if parts else (0,)
+
 def check_version(with_msg=False):
     """Check for the latest version of the project.
 
@@ -62,7 +68,7 @@ def check_version(with_msg=False):
         latest_version = __version__
 
     if with_msg:
-        is_up_to_date = latest_version <= __version__
+        is_up_to_date = _parse_version(latest_version) <= _parse_version(__version__)
         msg = (
             f"{bcolors.OKGREEN}Your bot is up-to-date! - {__version__}{bcolors.ENDC}" 
             if is_up_to_date

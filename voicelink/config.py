@@ -21,6 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+import copy
 import os
 
 from pathlib import Path
@@ -32,6 +33,121 @@ try:
     load_dotenv()
 except ImportError:
     pass
+
+DEFAULT_ACTIVITY: list[dict[str, str]] = [
+    {"type": "listening", "name": "/help", "status": "online"}
+]
+
+DEFAULT_SOURCES_SETTINGS: dict[str, dict[str, str]] = {
+    "youtube": {
+        "emoji": "<:youtube:826661982760992778>",
+        "color": "0xFF0000"
+    },
+    "youtubemusic": {
+        "emoji": "<:youtube:826661982760992778>",
+        "color": "0xFF0000"
+    },
+    "spotify": {
+        "emoji": "<:spotify:826661996615172146>",
+        "color": "0x1DB954"
+    },
+    "soundcloud": {
+        "emoji": "<:soundcloud:852729280027033632>",
+        "color": "0xFF7700"
+    },
+    "twitch": {
+        "emoji": "<:twitch:852729278285086741>",
+        "color": "0x9B4AFF"
+    },
+    "bandcamp": {
+        "emoji": "<:bandcamp:864694003811221526>",
+        "color": "0x6F98A7"
+    },
+    "vimeo": {
+        "emoji": "<:vimeo:864694001919721473>",
+        "color": "0x1ABCEA"
+    },
+    "applemusic": {
+        "emoji": "<:applemusic:994844332374884413>",
+        "color": "0xE298C4"
+    },
+    "reddit": {
+        "emoji": "<:reddit:996007566863773717>",
+        "color": "0xFF5700"
+    },
+    "tiktok": {
+        "emoji": "<:tiktok:996007689798811698>",
+        "color": "0x74ECE9"
+    },
+    "others": {
+        "emoji": "🔗",
+        "color": "0xb3b3b3"
+    }
+}
+
+DEFAULT_CONTROLLER: dict[str, Any] = {
+    "embeds": {
+        "active": {
+            "description": "**Now Playing: ```[@@track_name@@]```\nLink: [Click Me](@@track_url@@) | Requester: @@track_requester_mention@@ | DJ: @@dj@@**",
+            "footer": {
+                "text": "Queue Length: @@queue_length@@ | Duration: @@track_duration@@ | Volume: @@volume@@% {{loop_mode != 'Off' ?? | Repeat: @@loop_mode@@}}"
+            },
+            "image": "@@track_thumbnail@@",
+            "author": {
+                "name": "Music Controller | @@channel_name@@",
+                "icon_url": "@@bot_icon@@"
+            },
+            "color": "@@track_color@@"
+        },
+        "inactive": {
+            "title": {
+                "name": "There are no songs playing right now"
+            },
+            "description": "[Support](@@server_invite_link@@) | [Invite](@@invite_link@@) | [Questionnaire](https://forms.gle/Qm8vjBfg2kp13YGD7)",
+            "image": "https://i.imgur.com/dIFBwU7.png",
+            "color": "@@default_embed_color@@"
+        }
+    },
+    "buttons": [
+        {
+            "back": {
+                "emoji": "⏮️",
+                "label": "@@t_player.buttons.back@@"
+            },
+            "play-pause": {
+                "states": {
+                    "pause": {
+                        "emoji": "⏸️",
+                        "label": "@@t_player.buttons.pause@@"
+                    },
+                    "resume": {
+                        "emoji": "▶️",
+                        "label": "@@t_player.buttons.resume@@"
+                    }
+                }
+            },
+            "skip": {
+                "emoji": "⏭️",
+                "label": "@@t_player.buttons.skip@@"
+            },
+            "stop": {
+                "emoji": "⏹️",
+                "label": "@@t_player.buttons.leave@@",
+                "style": "red"
+            },
+            "add-fav": {
+                "emoji": "❤️",
+                "label": ""
+            }
+        },
+        {
+            "tracks": {
+                "label": "@@t_player.dropdown.trackSelect@@",
+                "max_options": 10
+            }
+        }
+    ]
+}
 
 class Config:
     _instance: 'Config | None' = None
@@ -87,8 +203,9 @@ class Config:
         self.max_queue: int = settings.get("default_max_queue", 1000)
         search_platform_str = os.getenv("DEFAULT_SEARCH_PLATFORM") or settings.get("default_search_platform", "youtube")
         self.search_platform: SearchType = SearchType.from_platform(search_platform_str) or SearchType.YOUTUBE
-        self.bot_prefix: str = settings.get("prefix", "")
-        self.activity: list[dict[str, str]] = settings.get("activity", [{"listen": "/help"}])
+        raw_prefix = settings["prefix"] if "prefix" in settings else os.getenv("PREFIX")
+        self.bot_prefix: str | None = raw_prefix if raw_prefix else None
+        self.activity: list[dict[str, str]] = settings.get("activity") or copy.deepcopy(DEFAULT_ACTIVITY)
         self.logging: dict[str, Any] = settings.get("logging", {})
         
         color_val = settings.get("embed_color", "0xb3b3b3")
@@ -102,12 +219,12 @@ class Config:
             access_users = [int(uid.strip()) for uid in env_access.split(",") if uid.strip().isdigit()]
         self.bot_access_user: list[int] = access_users or []
 
-        self.sources_settings: dict[str, dict[str, str]] = settings.get("sources_settings", {})
+        self.sources_settings: dict[str, dict[str, str]] = settings.get("sources_settings") or copy.deepcopy(DEFAULT_SOURCES_SETTINGS)
         self.cooldowns_settings: dict[str, list[int]] = settings.get("cooldowns", {})
         self.aliases_settings: dict[str, list[str]] = settings.get("aliases", {})
-        self.controller: dict[str, dict[str, Any]] = settings.get("default_controller", {})
+        self.controller: dict[str, dict[str, Any]] = settings.get("default_controller") or copy.deepcopy(DEFAULT_CONTROLLER)
         self.voice_status_template: str = settings.get("default_voice_status_template", "")
-        self.lyrics_platform: str = settings.get("lyrics_platform", "A_ZLyrics").lower()
+        self.lyrics_platform: str = (os.getenv("LYRICS_PLATFORM") or settings.get("lyrics_platform", "lrclib")).lower()
         self.ipc_client: dict[str, Any] = settings.get("ipc_client", {})
         self.playlist_settings: dict[str, Any] = settings.get("playlist_settings", {})
         self.timer_settings: dict[str, int] = settings.get("timer_settings", {})

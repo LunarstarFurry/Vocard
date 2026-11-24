@@ -225,12 +225,13 @@ class NodesPanel(discord.ui.View):
                 
                 if node._available and node.stats:
                     total_memory = node.stats.used + node.stats.free
+                    ram_pct = (node.stats.free / total_memory) * 100 if total_memory else 0.0
                     embed.add_field(
                         name=f"{name} Node - 🟢 Connected",
                         value=f"```• ADDRESS: {node._host}:{node._port}\n" \
                             f"• PLAYERS: {len(node._players)}\n" \
                             f"• CPU:     {node.stats.cpu_process_load:.1f}%\n" \
-                            f"• RAM:     {format_bytes(node.stats.free)}/{format_bytes(total_memory, True)} ({(node.stats.free/total_memory) * 100:.1f}%)\n"
+                            f"• RAM:     {format_bytes(node.stats.free)}/{format_bytes(total_memory, True)} ({ram_pct:.1f}%)\n"
                             f"• LATENCY: {node.latency:.2f}ms\n" \
                             f"• UPTIME:  {format_ms(node.stats.uptime)}```"
                     )
@@ -293,7 +294,7 @@ class NodesPanel(discord.ui.View):
                 "identifier": v["identifier"]
             }
         except Exception:
-            return await interaction.response.send_message("Some of your input is invalid! Please try again.", ephemeral=True)
+            return await interaction.followup.send("Some of your input is invalid! Please try again.", ephemeral=True)
         
         try:
             await voicelink.NodePool.create_node(bot=interaction.client, **config)
@@ -380,16 +381,16 @@ class DebugView(discord.ui.View):
     
     @discord.ui.button(label="Stop-Bot", emoji="🔴")
     async def stop(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for name in self.bot.cogs.copy().keys():
+        for ext_name in list(self.bot.extensions.keys()):
             try:
-                await self.bot.unload_extension(name)
+                await self.bot.unload_extension(ext_name)
             except Exception:
                 pass
 
         player_data = []
         for identifier, node in voicelink.NodePool._nodes.items():
             for guild_id, player in node._players.copy().items():
-                if player.guild.me is None or player.guild.me.voice or not player.current:
+                if player.guild.me is None or not player.guild.me.voice or not player.current:
                     continue
 
                 player_data.append(player.data)

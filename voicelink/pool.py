@@ -38,7 +38,7 @@ from . import (
     __version__
 )
 
-from .enums import SearchType, NodeAlgorithm
+from .enums import SearchType, NodeAlgorithm, TrackRecType
 from .exceptions import (
     NodeConnectionFailure,
     NodeCreationError,
@@ -58,6 +58,21 @@ if TYPE_CHECKING:
 
 URL_REGEX = re.compile(
     r"https?://(?:www\.)?.+"
+)
+
+SEARCH_PREFIX_REGEX = re.compile(
+    r"^(?:" + "|".join(
+        sorted({
+            *(st.value for st in SearchType),
+            *(rt.value.split(":", 1)[0] for rt in TrackRecType if not rt.value.startswith("http")),
+            "dzisrc",
+            "bcsearch",
+            "ftts",
+            "tts",
+            "local",
+        })
+    ) + r"):",
+    re.IGNORECASE,
 )
 
 NODE_VERSION = "v4"
@@ -368,7 +383,7 @@ class Node:
             
         raw_query = query
         is_url = bool(URL_REGEX.match(query))
-        has_prefix = ':' in query
+        has_prefix = bool(SEARCH_PREFIX_REGEX.match(query))
 
         if not is_url and not has_prefix:
             query = f"{search_type}:{query}"
@@ -407,11 +422,21 @@ class Node:
         elif load_type == "error":
             msg = data.get('message', 'Unknown error') if isinstance(data, dict) else str(data)
             severity = data.get('severity', 'fault') if isinstance(data, dict) else 'error'
-            raise TrackLoadError(
-                f"{msg} [{severity}]\n"
-                f"💡 *Hint: Your Lavalink node failed to query YouTube. "
-                f"Try playing via SoundCloud, Spotify, or update your Lavalink YouTube plugin.*"
+            raw_query_lower = raw_query.lower()
+            is_youtube_query = (
+                (not is_url and not has_prefix and search_type in (SearchType.YOUTUBE, SearchType.YOUTUBE_MUSIC))
+                or "youtube.com" in raw_query_lower
+                or "youtu.be" in raw_query_lower
+                or raw_query_lower.startswith(("ytsearch:", "ytmsearch:"))
             )
+            hint = (
+                "💡 *Hint: Your Lavalink node failed to query YouTube. "
+                "Try playing via SoundCloud, Spotify, or update your Lavalink YouTube plugin.*"
+                if is_youtube_query
+                else "💡 *Hint: Your Lavalink node failed to load this track. "
+                "Try another source or check your Lavalink server logs.*"
+            )
+            raise TrackLoadError(f"{msg} [{severity}]\n{hint}")
 
         elif load_type in ("playlist", "recommendations"):
             return Playlist(playlist_info=data["info"], tracks=data["tracks"], requester=requester)

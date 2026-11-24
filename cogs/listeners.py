@@ -66,7 +66,7 @@ class Listeners(commands.Cog):
                 channel = self.bot.get_channel(channel_id)
                 if not channel:
                     continue
-                elif not any(False if member.bot or member.voice.self_deaf else True for member in channel.members):
+                elif not any(not member.bot and not (member.voice and member.voice.self_deaf) for member in channel.members):
                     continue
                     
                 dj_member = channel.guild.get_member(data.get("dj"))
@@ -173,17 +173,17 @@ class Listeners(commands.Cog):
                 is_joined = False
                 
         if is_joined and player.settings.get("24/7", False):
-            if player.is_paused and len([m for m in player.channel.members if not m.bot or not m.voice.self_deaf]) == 1:
+            if player.is_paused and len([m for m in player.channel.members if not m.bot and not (m.voice and m.voice.self_deaf)]) == 1:
                 await player.set_pause(False, member)
                     
         if not is_joined:
-            if not player.is_paused and len([m for m in player.channel.members if not m.bot or not m.voice.self_deaf]) == 0:
+            if not player.is_paused and len([m for m in player.channel.members if not m.bot and not (m.voice and m.voice.self_deaf)]) == 0:
                 player._schedule_inactive_cleanup_timer()
 
         # if dj is not in the channel, find a new DJ
         if player.dj not in player.channel.members:
             for m in player.channel.members:
-                if not m.bot or not m.voice.self_deaf:
+                if not m.bot and not (m.voice and m.voice.self_deaf):
                     player.dj = m
                     break
                     

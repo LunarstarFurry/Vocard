@@ -71,7 +71,8 @@ class MongoDBHandler:
     _CACHE_TTL: int = 300  # 5 minutes
     _settings_buffer: Dict[int, Dict[str, Any]] = {}
     _users_buffer: Dict[int, Dict[str, Any]] = {}
-    _last_access: Dict[int, float] = {}  # Tracks last access time for cache entries
+    _settings_last_access: Dict[int, float] = {}  # Tracks last access time for settings cache entries
+    _users_last_access: Dict[int, float] = {}  # Tracks last access time for user cache entries
 
     # Maximum cache size to prevent memory issues
     _MAX_CACHE_SIZE: int = 10000
@@ -155,26 +156,39 @@ class MongoDBHandler:
 
         async with cls._lock:
             try:
-                # Remove expired entries from settings cache
-                expired_settings = [
-                    guild_id for guild_id, last_access in cls._last_access.items()
-                    if current_time - last_access > cls._CACHE_TTL and guild_id in cls._settings_buffer
-                ]
-                logger.debug("Found %d expired cache entries.", len(expired_settings))
+                caches = (
+                    ("settings", cls._settings_buffer, cls._settings_last_access),
+                    ("users", cls._users_buffer, cls._users_last_access),
+                )
+                for label, buffer, last_access in caches:
+                    expired_ids = [
+                        entry_id for entry_id, ts in last_access.items()
+                        if current_time - ts > cls._CACHE_TTL
+                    ]
+                    logger.debug("Found %d expired %s cache entries.", len(expired_ids), label)
 
-                for guild_id in expired_settings:
-                    del cls._settings_buffer[guild_id]
-                    del cls._last_access[guild_id]
-                    logger.debug("Removed expired cache for guild_id: %s", guild_id)
+                    for entry_id in expired_ids:
+                        buffer.pop(entry_id, None)
+                        last_access.pop(entry_id, None)
+                        logger.debug("Removed expired %s cache for id: %s", label, entry_id)
 
-                # If still too large, remove oldest entries
-                while len(cls._settings_buffer) > cls._MAX_CACHE_SIZE:
-                    oldest_id = min(cls._last_access.items(), key=lambda x: x[1])[0]
-                    del cls._settings_buffer[oldest_id]
-                    del cls._last_access[oldest_id]
-                    logger.warning("Cache size exceeded. Removed oldest entry: %s", oldest_id)
+                    for entry_id in [k for k in last_access if k not in buffer]:
+                        last_access.pop(entry_id, None)
 
-                logger.info("Cache cleanup completed. Current cache size: %d", len(cls._settings_buffer))
+                    while len(buffer) > cls._MAX_CACHE_SIZE:
+                        if last_access:
+                            oldest_id = min(last_access.items(), key=lambda x: x[1])[0]
+                        else:
+                            oldest_id = next(iter(buffer))
+                        buffer.pop(oldest_id, None)
+                        last_access.pop(oldest_id, None)
+                        logger.warning("%s cache size exceeded. Removed oldest entry: %s", label.capitalize(), oldest_id)
+
+                logger.info(
+                    "Cache cleanup completed. Current cache size: settings=%d, users=%d",
+                    len(cls._settings_buffer),
+                    len(cls._users_buffer),
+                )
 
             except Exception as e:
                 logger.error("Cache cleanup failed: %s", str(e), exc_info=True)
@@ -256,15 +270,27 @@ class MongoDBHandler:
                 
                 # Update last access time
                 if '_id' in filter_:
-                    cls._last_access[filter_['_id']] = time.time()
+                    if db is not None and db is cls._settings_db:
+                        cls._settings_last_access[filter_['_id']] = time.time()
+                    elif db is not None and db is cls._users_db:
+                        cls._users_last_access[filter_['_id']] = time.time()
                 
                 return result.modified_count > 0
 
             except Exception as e:
                 # Rollback cache if database update fails
                 if '_id' in filter_:
-                    cls._settings_buffer.pop(filter_['_id'], None)
-                    cls._users_buffer.pop(filter_['_id'], None)
+                    if db is not None and db is cls._settings_db:
+                        cls._settings_buffer.pop(filter_['_id'], None)
+                        cls._settings_last_access.pop(filter_['_id'], None)
+                    elif db is not None and db is cls._users_db:
+                        cls._users_buffer.pop(filter_['_id'], None)
+                        cls._users_last_access.pop(filter_['_id'], None)
+                    else:
+                        cls._settings_buffer.pop(filter_['_id'], None)
+                        cls._settings_last_access.pop(filter_['_id'], None)
+                        cls._users_buffer.pop(filter_['_id'], None)
+                        cls._users_last_access.pop(filter_['_id'], None)
                 raise Exception(f"Update failed: {str(e)}")
 
     @classmethod
@@ -324,8 +350,9 @@ class MongoDBHandler:
                             raise ConnectionError(f"Failed to create settings: {str(e)}")
                     
                     cls._settings_buffer[guild_id] = settings
-                    cls._last_access[guild_id] = time.time()
+                    cls._settings_last_access[guild_id] = time.time()
                 
+                cls._settings_last_access[guild_id] = time.time()
                 buffer = cls._settings_buffer[guild_id]
                 return copy.deepcopy(buffer) if deep_copy else buffer
 
@@ -369,6 +396,7 @@ class MongoDBHandler:
                 settings = {"_id": guild_id, **data.get("$set", {})}
                 await cls._settings_db.insert_one(settings)
                 cls._settings_buffer[guild_id] = settings
+                cls._settings_last_access[guild_id] = time.time()
                 return True
                 
             return result
@@ -415,8 +443,9 @@ class MongoDBHandler:
                             raise ConnectionError(f"Failed to create user: {str(e)}")
                     
                     cls._users_buffer[user_id] = user
-                    cls._last_access[user_id] = time.time()
+                    cls._users_last_access[user_id] = time.time()
 
+                cls._users_last_access[user_id] = time.time()
                 user = cls._users_buffer[user_id]
                 
                 if d_type:
@@ -466,6 +495,7 @@ class MongoDBHandler:
                 user_data = {"_id": user_id, **data.get("$set", {})}
                 await cls._users_db.insert_one(user_data)
                 cls._users_buffer[user_id] = user_data
+                cls._users_last_access[user_id] = time.time()
                 return True
                 
             return result
@@ -492,7 +522,7 @@ class MongoDBHandler:
                 result = await cls._users_db.delete_one({"_id": user_id})
                 if result.deleted_count > 0:
                     cls._users_buffer.pop(user_id, None)
-                    cls._last_access.pop(user_id, None)
+                    cls._users_last_access.pop(user_id, None)
                     return True
                 return False
                 
@@ -534,7 +564,7 @@ class MongoDBHandler:
                 for user in users:
                     user_id = user["_id"]
                     cls._users_buffer[user_id] = user
-                    cls._last_access[user_id] = current_time
+                    cls._users_last_access[user_id] = current_time
                     
             return users
             

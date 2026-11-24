@@ -211,10 +211,12 @@ class CommandCheck(discord.app_commands.CommandTree):
             
         return True
 
-async def get_prefix(bot: commands.Bot, message: discord.Message) -> str:
+async def get_prefix(bot: commands.Bot, message: discord.Message) -> str | list[str]:
+    if not message.guild:
+        return []
     settings = await MongoDBHandler.get_settings(message.guild.id)
     prefix = settings.get("prefix", bot_config.bot_prefix)
-    return prefix if prefix is not None else ""
+    return prefix if prefix else []
 
 # Loading settings and logger
 bot_config = Config(func.open_json("settings.json"))
@@ -237,7 +239,7 @@ for log_name, log_level in LOG_SETTINGS.get("level", {}).items():
 
 # Setup the bot object
 intents = discord.Intents.default()
-intents.message_content = False if bot_config.bot_prefix is None else True
+intents.message_content = bool(bot_config.bot_prefix)
 intents.members = bot_config.ipc_client.get("enable", False)
 intents.voice_states = True
 intents.presences = False
